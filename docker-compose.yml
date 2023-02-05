@@ -1,0 +1,68 @@
+# 파일 규격 버전
+version: "3"
+# 이 항목 밑에 실행하려는 컨테이너 들을 정의
+services:
+  mongo1:
+    image: mongo:5.0.14
+    hostname: mongo1
+    restart: always
+    container_name: mongo1
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: mongo
+    volumes:
+      - ./data/db/replica/mongo1:/data/db
+      - ./mongodb.key:/etc/mongodb.key
+    command:
+      - "--replSet"
+      - "rs0"
+      - "--keyFile"
+      - "/etc/mongodb.key"
+      - "--bind_ip_all"
+  mongo2:
+    image: mongo:5.0.14
+    hostname: mongo2
+    container_name: mongo2
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: mongo
+    depends_on:
+      - mongo1
+    ports:
+      - 27018:27017
+    volumes:
+      - ./data/db/replica/mongo2:/data/db
+      - ./mongodb.key:/etc/mongodb.key
+    command:
+      - "--replSet"
+      - "rs0"
+      - "--keyFile"
+      - "/etc/mongodb.key"
+      - "--bind_ip_all"
+  mongo3:
+    image: mongo:5.0.14
+    hostname: mongo3
+    container_name: mongo3
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: mongo
+    depends_on:
+      - mongo2
+    ports:
+      - 27019:27017
+    volumes:
+      - ./data/db/replica/mongo3:/data/db
+      - ./mongodb.key:/etc/mongodb.key
+    command:
+      - "--replSet"
+      - "rs0"
+      - "--keyFile"
+      - "/etc/mongodb.key"
+      - "--bind_ip_all"
+networks:
+  default:
+    name: mongoCluster
