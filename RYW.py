@@ -1,49 +1,91 @@
 import time
 
-from bson import raw_bson
-from pymongo import MongoClient, ReadPreference, collection
+from bson.objectid import ObjectId
+from pymongo import MongoClient, ReadPreference, read_concern, write_concern
 
 
-def main():
+def RYW_fail():
     try:
-        # master = MongoClient(host = 'localhost', port = 27017, directConnection=True)
-        # 아마 초기에 설정할때는 필요할둡.
-        # config = {
-        #     '_id': "rs0",
-        #     'members': [
-        #         {'_id': 0, 'host': "mongo1"},
-        #         {'_id': 1, 'host': "mongo2"},
-        #         {'_id': 2, 'host': "mongo3"}
-        #     ]
-        # }
-        # master.admin.command("replSetInitiate", config)
+        print('start')
 
-        client = MongoClient('mongodb://localhost:27017,localhost:27018,localhost:27019', replicaSet = 'rs0', readPreference = 'secondaryPreferred', username = 'test', password='test')
-        print(client.read_preference)
-        print('client', client)
-        collection = client.get_database('test-db').get_collection('test-collection', read_preference=ReadPreference.SECONDARY)
-        print(collection)
+        # connect to Mongo
+        client = MongoClient('mongodb://localhost:27018', username = 'mongo', password='mongo')
 
-        # 아래의 동작시 에러발생
-        # print(client.list_database_names()) 
+        # get collection
+        collection = client['test'].get_collection('collection').with_options(read_preference= ReadPreference.SECONDARY)
+        
+        # For 3 sec, write to Primary and get from Secondary
         start_time = time.time()
-        # while(time.time() - start_time < 3):
-        #     id = collection.insert_one({'x': 1})
-        #     print(id)
-    except ValueError:
-        print('error발생', ValueError)
+        while(time.time() - start_time < 3):
+            # insert new element 
+            new_document = collection.insert_one({'합격기': 1})
+            found_document = list(collection.find({'_id': ObjectId(new_document.inserted_id)}))
 
-main()
-'''
-    while (sw.ElapsedMilliseconds < 5000)
-    {
-        var newDocument = new BsonDocument();
-        collection.InsertOne(newDocument);
-        var foundDocument = collection.Find(Builders<BsonDocument>.Filter.Eq(x => x["_id"], newDocument["_id"]))
-            .FirstOrDefault();
-        if (foundDocument == null)
-            throw new Exception("Document not found");
-    }
-    
-    Console.WriteLine("Success!");
-'''
+            # print(f'len -> {len(found_document)}')
+            if(found_document == []):
+                raise Exception('Document not found - Fail to get document from Secondary')
+                    
+        print('Success: insert to Primary, read from Secondary')
+    except ValueError:
+        print('error Occurred', ValueError)
+
+def RYW_fail_with_majority():
+    try:
+        print('start')
+
+        # connect to Mongo
+        client = MongoClient('mongodb://localhost:27018', username = 'mongo', password='mongo')
+
+        # get collection
+        collection = client['test'].get_collection('collection').with_options(read_preference= ReadPreference.SECONDARY, write_concern= write_concern.WriteConcern(w = 2), read_concern= read_concern.ReadConcern(level='majority'))
+        # collection = client['test'].get_collection('collection').with_options(read_preference= ReadPreference.SECONDARY_PREFERRED, write_concern= write_concern.WriteConcern(w = 2))
+
+        # For 3 sec, write to Primary and get from Secondary
+        start_time = time.time()
+        while(time.time() - start_time < 3):
+            # insert new element 
+            new_document = collection.insert_one({'합격기': 1})
+            found_document = list(collection.find({'_id': ObjectId(new_document.inserted_id)}))
+
+            # print(f'len -> {len(found_document)}')
+            if(found_document == []):
+                raise Exception('Document not found - Fail to get document from Secondary')
+                    
+        print('Success: insert to Primary, read from Secondary with read,write "majority"')
+    except ValueError:
+        print('error Occurred', ValueError)
+
+def RYW_with_majority_session():
+    try:
+        print('start')
+
+        # connect to Mongo
+        client = MongoClient('mongodb://localhost:27018', username = 'mongo', password='mongo')
+        
+        # start session
+        session = client.start_session(causal_consistency= True)
+
+        # get collection
+        collection = client['test'].get_collection('collection').with_options(read_preference= ReadPreference.SECONDARY, write_concern= write_concern.WriteConcern(w = 2), read_concern= read_concern.ReadConcern(level='majority'))
+
+        # For 3 sec, write to Primary and get from Secondary
+        start_time = time.time()
+        while(time.time() - start_time < 3):
+            # insert new element 
+            new_document = collection.insert_one(document= {'합격기': 1}, session = session)
+            found_document = list(collection.find({'_id': ObjectId(new_document.inserted_id)}, session = session))
+
+            # print(f'len -> {len(found_document)}')
+            if(found_document == []):
+                raise Exception('Document not found - Fail to get document from Secondary')
+                    
+        print('Success: insert to Primary, read from Secondary with read,write "majority" and "session"')
+    except ValueError:
+        print('error Occurred', ValueError)
+
+
+
+# 요기도 이상하게 2,3번은 의도대로 잘 작동하는데, 1번에서 실패하는게 안보임. 아마 내 로컬쪽 환경문제인듯함.
+# RYW_fail()
+# RYW_fail_with_majority()
+# RYW_with_majority_session()
