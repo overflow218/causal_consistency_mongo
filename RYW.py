@@ -3,6 +3,13 @@ import time
 from bson.objectid import ObjectId
 from pymongo import MongoClient, ReadPreference, read_concern, write_concern
 
+'''
+Read Your Write 시나리오
+0. 비어있는 콜렉션이라 가정
+1. 새로운 다큐먼트를 콜렉션에 추가한다.
+2. 세컨더리에서 해당 다큐먼트를 읽을 수 있는지 체크한다
+4. 1-2의 과정을 3초동안 반복한다
+'''
 
 def RYW_fail():
     try:
@@ -11,7 +18,6 @@ def RYW_fail():
         # connect to Mongo
         # client = MongoClient('mongodb://localhost:27018', username = 'mongo', password='mongo')
         client = MongoClient('mongodb://localhost:27017,localhost:27018,localhost:27019', replicaSet = 'rs0', readPreference = 'secondary', readPreferenceTags= 'usage:read', maxStalenessSeconds = 120, username = 'mongo', password='mongo')
-        # print(client)
 
         # get collection
         collection = client['test'].get_collection('collection').with_options(read_preference= ReadPreference.SECONDARY)
@@ -38,7 +44,7 @@ def RYW_fail_with_majority():
         # connect to Mongo
         # client = MongoClient('mongodb://localhost:27018', username = 'mongo', password='mongo')
         client = MongoClient('mongodb://localhost:27017,localhost:27018,localhost:27019', replicaSet = 'rs0', readPreference = 'secondary', readPreferenceTags= 'usage:read', maxStalenessSeconds = 120, username = 'mongo', password='mongo')
-        # print(client)
+
         # get collection
         collection = client['test'].get_collection('collection').with_options(read_preference= ReadPreference.SECONDARY, write_concern= write_concern.WriteConcern(w = 2), read_concern= read_concern.ReadConcern(level='majority'))
         # collection = client['test'].get_collection('collection').with_options(read_preference= ReadPreference.SECONDARY_PREFERRED, write_concern= write_concern.WriteConcern(w = 2))
@@ -65,7 +71,6 @@ def RYW_with_majority_session():
         # connect to Mongo
         # client = MongoClient('mongodb://localhost:27018', username = 'mongo', password='mongo')
         client = MongoClient('mongodb://localhost:27017,localhost:27018,localhost:27019', replicaSet = 'rs0', readPreference = 'secondary', readPreferenceTags= 'usage:read', maxStalenessSeconds = 120, username = 'mongo', password='mongo')
-        # print(client)
         
         # start session
         session = client.start_session(causal_consistency= True)
@@ -89,8 +94,6 @@ def RYW_with_majority_session():
         print('error Occurred', ValueError)
 
 
-
-# 요기도 이상하게 2,3번은 의도대로 잘 작동하는데, 1번에서 실패하는게 안보임. 아마 내 로컬쪽 환경문제인듯함.
 # RYW_fail()
 # RYW_fail_with_majority()
-RYW_with_majority_session()
+# RYW_with_majority_session()
